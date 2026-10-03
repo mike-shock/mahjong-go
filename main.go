@@ -73,6 +73,18 @@ func main() {
 	w := a.NewWindow("Маджонг — пасьянс")
 	w.Resize(fyne.NewSize(1000, 720))
 	g := game.New(time.Now().UnixNano())
+	layoutOptions := append([]string{"Случайная"}, game.LayoutNames()...)
+	layoutSelect := widget.NewSelect(layoutOptions, nil)
+	layoutSelect.SetSelected("Случайная")
+	newDeal := func() *game.Game {
+		seed := time.Now().UnixNano()
+		for index, name := range game.LayoutNames() {
+			if layoutSelect.Selected == name {
+				return game.NewWithLayout(seed, game.Layout(index))
+			}
+		}
+		return game.New(seed)
+	}
 	selected := -1
 	hintA, hintB := -1, -1
 	status := widget.NewLabel("")
@@ -109,7 +121,7 @@ func main() {
 			}
 			board.Add(button)
 		}
-		status.SetText(fmt.Sprintf("Плиток: %d / 144", g.Remaining()))
+		status.SetText(fmt.Sprintf("%s · Плиток: %d / 144", g.Layout.Name(), g.Remaining()))
 		if g.Remaining() == 0 {
 			message.SetText("Поздравляем! Все плитки сняты.")
 		} else if _, _, ok := g.Hint(); !ok {
@@ -120,7 +132,7 @@ func main() {
 	newGame := widget.NewButton("Новая игра", func() {
 		dialog.ShowConfirm("Новая игра", "Начать заново?", func(ok bool) {
 			if ok {
-				g = game.New(time.Now().UnixNano())
+				g = newDeal()
 				selected = -1
 				hintA, hintB = -1, -1
 				message.SetText("Выберите пару.")
@@ -158,7 +170,7 @@ func main() {
 		dialog.ShowInformation("Как играть", "Снимайте пары одинаковых плиток. Плитка свободна, если над ней ничего нет и хотя бы одна боковая сторона открыта.\n\nЦель — убрать все 144 плитки. Цветок и сезон сопоставляются только с такими же плитками. Новая раскладка и перемешивание имеют решение, но выбранные ходы могут привести в тупик.", w)
 	})
 	background := canvas.NewRectangle(color.NRGBA{R: 24, G: 77, B: 66, A: 255})
-	header := container.NewVBox(widget.NewLabelWithStyle("МАДЖОНГ", fyne.TextAlignCenter, fyne.TextStyle{Bold: true}), container.NewHBox(newGame, hint, undo, shuffle, rules, status))
+	header := container.NewVBox(widget.NewLabelWithStyle("МАДЖОНГ", fyne.TextAlignCenter, fyne.TextStyle{Bold: true}), container.NewHBox(layoutSelect, newGame, hint, undo, shuffle, rules, status))
 	w.SetContent(container.NewBorder(header, message, nil, nil, container.NewStack(background, board)))
 	refresh()
 	w.ShowAndRun()
