@@ -1,6 +1,7 @@
 package main
 
 import (
+ "embed"
  "fmt"
  "image/color"
  "time"
@@ -14,6 +15,10 @@ import (
  "fyne.io/fyne/v2/theme"
  "fyne.io/fyne/v2/widget"
 )
+
+// Tile artwork is embedded so Chinese glyphs do not depend on system fonts.
+//go:embed assets/tiles/*.png
+var tileArtwork embed.FS
 
 type boardLayout struct{}
 func (boardLayout) MinSize([]fyne.CanvasObject) fyne.Size {return fyne.NewSize(840,560)}
@@ -29,7 +34,6 @@ func (boardLayout) Layout(objects []fyne.CanvasObject,size fyne.Size) {
 type tileButton struct {
  widget.BaseWidget
  tile game.Tile
- label string
  selected,hinted,free bool
  tapped func()
 }
@@ -42,19 +46,13 @@ func (t *tileButton) CreateRenderer() fyne.WidgetRenderer {
  if !t.free {bg.FillColor=color.NRGBA{R:169,G:166,B:151,A:255}}
  if t.selected {bg.FillColor=color.NRGBA{R:255,G:209,B:92,A:255}}
  if t.hinted {bg.StrokeColor=color.NRGBA{R:40,G:190,B:130,A:255};bg.StrokeWidth=4}
- text:=canvas.NewText(t.label,color.NRGBA{R:36,G:57,B:67,A:255})
- if t.tile.Kind<9 {text.Color=color.NRGBA{R:179,G:49,B:43,A:255}}
- if t.tile.Kind>=9 && t.tile.Kind<18 {text.Color=color.NRGBA{R:28,G:113,B:68,A:255}}
- text.Alignment=fyne.TextAlignCenter
- text.TextSize=17
- text.TextStyle.Bold=true
- return widget.NewSimpleRenderer(container.NewStack(bg,container.NewCenter(text)))
-}
-func tileName(k int) string {
- if k<9 {return fmt.Sprintf("%d 万",k+1)}
- if k<18 {return fmt.Sprintf("%d ║",k-8)}
- if k<27 {return fmt.Sprintf("%d ●",k-17)}
- return []string{"Восток","Юг","Запад","Север","Красн.","Зелён.","Белый","Цветок","Сезон"}[k-27]
+ data, err := tileArtwork.ReadFile(fmt.Sprintf("assets/tiles/%02d.png", t.tile.Kind))
+ if err != nil {
+  panic(err) // All 36 tile faces are included at compile time.
+ }
+ face := canvas.NewImageFromResource(fyne.NewStaticResource(fmt.Sprintf("tile-%02d.png", t.tile.Kind), data))
+ face.FillMode = canvas.ImageFillContain
+ return widget.NewSimpleRenderer(container.NewStack(bg, face))
 }
 
 func main() {
@@ -74,7 +72,7 @@ func main() {
   for i,t:=range g.Tiles {
    if t.Removed {continue}
    i:=i
-   button:=&tileButton{tile:t,label:tileName(t.Kind),free:g.Free(i),selected:selected==i,hinted:i==hintA||i==hintB}
+   button:=&tileButton{tile:t,free:g.Free(i),selected:selected==i,hinted:i==hintA||i==hintB}
    button.ExtendBaseWidget(button)
    button.tapped=func() {
     if !g.Free(i) {message.SetText("Плитка закрыта сверху или с обеих сторон.");return}
