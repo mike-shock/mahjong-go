@@ -78,6 +78,30 @@ func TestShufflePreservesRemovedTilesAndRemainingKinds(t *testing.T) {
 	}
 }
 
+func TestHintedPairsDisappearImmediately(t *testing.T) {
+	for layout := Classic; layout < layoutCount; layout++ {
+		for seed := int64(0); seed < 20; seed++ {
+			g := NewWithLayout(seed, layout)
+			for {
+				a, b, ok := g.Hint()
+				if !ok {
+					break
+				}
+				before := g.Remaining()
+				if !g.Match(a, b) {
+					t.Fatalf("%s seed %d: hinted pair %d,%d did not match", layout.Name(), seed, a, b)
+				}
+				if !g.Tiles[a].Removed || !g.Tiles[b].Removed {
+					t.Fatalf("%s seed %d: matched pair %d,%d remained visible", layout.Name(), seed, a, b)
+				}
+				if after := g.Remaining(); after != before-2 {
+					t.Fatalf("%s seed %d: remaining count changed from %d to %d", layout.Name(), seed, before, after)
+				}
+			}
+		}
+	}
+}
+
 func TestLayoutNamesReturnsCopy(t *testing.T) {
 	names := LayoutNames()
 	names[0] = "changed"

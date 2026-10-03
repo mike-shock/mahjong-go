@@ -23,12 +23,12 @@ var tileArtwork embed.FS
 
 type boardLayout struct{}
 
-func (boardLayout) MinSize([]fyne.CanvasObject) fyne.Size { return fyne.NewSize(840, 600) }
+func (boardLayout) MinSize([]fyne.CanvasObject) fyne.Size { return fyne.NewSize(840, 680) }
 func (boardLayout) Layout(objects []fyne.CanvasObject, size fyne.Size) {
-	sx, sy := size.Width/840, size.Height/600
+	sx, sy := size.Width/840, size.Height/680
 	for _, o := range objects {
 		t := o.(*tileButton)
-		t.Move(fyne.NewPos(float32(20+t.tile.X*64+t.tile.Z*10)*sx, float32(20+t.tile.Y*67-t.tile.Z*10)*sy))
+		t.Move(fyne.NewPos(float32(20+t.tile.X*64+t.tile.Z*10)*sx, float32(20+t.tile.Y*76-t.tile.Z*10)*sy))
 		t.Resize(fyne.NewSize(58*sx, 76*sy))
 	}
 }
@@ -92,7 +92,7 @@ func main() {
 	board := container.New(boardLayout{})
 	var refresh func()
 	refresh = func() {
-		board.Objects = nil
+		board.RemoveAll()
 		for i, t := range g.Tiles {
 			if t.Removed {
 				continue
