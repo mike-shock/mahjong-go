@@ -26,9 +26,12 @@ var layouts = [...][]layer{
 		{{x: 4, y: 3, width: 4, height: 2}},
 	},
 	Pyramid: {
-		{{x: 1, y: 0, width: 10, height: 8}},
-		{{x: 2, y: 1, width: 8, height: 6}},
-		{{x: 4, y: 2, width: 4, height: 4}},
+		// All tiers share the center (5, 3), ending in a single summit.
+		// 77 + 45 + 21 + 1 = 144 tiles.
+		{{x: 0, y: 0, width: 11, height: 7}},
+		{{x: 1, y: 1, width: 9, height: 5}},
+		{{x: 2, y: 2, width: 7, height: 3}},
+		{{x: 5, y: 3, width: 1, height: 1}},
 	},
 	Fortress: {
 		// Each wall level has 12*8 - 8*4 = 64 tiles.

@@ -13,9 +13,10 @@ func TestLayoutCoordinates(t *testing.T) {
 				z == 2 && inside(x, y, 4, 3, 4, 2)
 		},
 		Pyramid: func(x, y, z int) bool {
-			return z == 0 && inside(x, y, 1, 0, 10, 8) ||
-				z == 1 && inside(x, y, 2, 1, 8, 6) ||
-				z == 2 && inside(x, y, 4, 2, 4, 4)
+			return z == 0 && inside(x, y, 0, 0, 11, 7) ||
+				z == 1 && inside(x, y, 1, 1, 9, 5) ||
+				z == 2 && inside(x, y, 2, 2, 7, 3) ||
+				z == 3 && x == 5 && y == 3
 		},
 		Fortress: func(x, y, z int) bool {
 			wall := inside(x, y, 0, 0, 12, 8) && !inside(x, y, 2, 2, 8, 4)
@@ -27,10 +28,11 @@ func TestLayoutCoordinates(t *testing.T) {
 	for layout := Classic; layout < layoutCount; layout++ {
 		t.Run(layout.Name(), func(t *testing.T) {
 			g := NewWithLayout(0, layout)
+			layerCount := len(layouts[layout])
 			positions[layout] = make(map[[3]int]bool)
 			for _, tile := range g.Tiles {
 				p := [3]int{tile.X, tile.Y, tile.Z}
-				if tile.X < 0 || tile.X >= 12 || tile.Y < 0 || tile.Y >= 8 || tile.Z < 0 || tile.Z >= 3 {
+				if tile.X < 0 || tile.X >= 12 || tile.Y < 0 || tile.Y >= 8 || tile.Z < 0 || tile.Z >= layerCount {
 					t.Fatalf("position outside board: %v", p)
 				}
 				if positions[layout][p] {
@@ -41,7 +43,7 @@ func TestLayoutCoordinates(t *testing.T) {
 			if len(positions[layout]) != 144 {
 				t.Fatalf("got %d positions, want 144", len(positions[layout]))
 			}
-			for z := 0; z < 3; z++ {
+			for z := 0; z < layerCount; z++ {
 				for y := 0; y < 8; y++ {
 					for x := 0; x < 12; x++ {
 						p := [3]int{x, y, z}
@@ -67,6 +69,40 @@ func TestLayoutCoordinates(t *testing.T) {
 			}
 			if !different {
 				t.Errorf("%s and %s have identical coordinates", a.Name(), b.Name())
+			}
+		}
+	}
+}
+
+func TestPyramidHasCenteredSummitAndShrinkingTiers(t *testing.T) {
+	g := NewWithLayout(42, Pyramid)
+	positions := make(map[[3]int]bool)
+	var counts [4]int
+	for _, tile := range g.Tiles {
+		if tile.Z < 0 || tile.Z >= len(counts) {
+			t.Fatalf("unexpected pyramid tier %d", tile.Z)
+		}
+		positions[[3]int{tile.X, tile.Y, tile.Z}] = true
+		counts[tile.Z]++
+	}
+	if counts != [4]int{77, 45, 21, 1} {
+		t.Fatalf("got tier sizes %v, want [77 45 21 1]", counts)
+	}
+	if !positions[[3]int{5, 3, 3}] {
+		t.Fatal("summit is not at the center (5, 3)")
+	}
+	for p := range positions {
+		// Both mirror axes must pass through the summit on every tier.
+		if !positions[[3]int{10 - p[0], p[1], p[2]}] || !positions[[3]int{p[0], 6 - p[1], p[2]}] {
+			t.Errorf("tier is not symmetric around the summit at %v", p)
+		}
+		if p[2] > 0 {
+			// Each upper tier must be inset on all four sides, not merely
+			// repeat the tier beneath it or create an unsupported overhang.
+			for _, offset := range [][2]int{{-1, 0}, {1, 0}, {0, -1}, {0, 1}} {
+				if !positions[[3]int{p[0] + offset[0], p[1] + offset[1], p[2] - 1}] {
+					t.Errorf("tier is not inset at %v toward %v", p, offset)
+				}
 			}
 		}
 	}
