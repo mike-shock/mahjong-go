@@ -2,6 +2,110 @@ package game
 
 import "testing"
 
+func TestLayoutCoordinates(t *testing.T) {
+	inside := func(x, y, left, top, width, height int) bool {
+		return x >= left && x < left+width && y >= top && y < top+height
+	}
+	expected := []func(int, int, int) bool{
+		Classic: func(x, y, z int) bool {
+			return z == 0 && inside(x, y, 0, 0, 12, 8) ||
+				z == 1 && inside(x, y, 1, 2, 10, 4) ||
+				z == 2 && inside(x, y, 4, 3, 4, 2)
+		},
+		Pyramid: func(x, y, z int) bool {
+			return z == 0 && inside(x, y, 1, 0, 10, 8) ||
+				z == 1 && inside(x, y, 2, 1, 8, 6) ||
+				z == 2 && inside(x, y, 4, 2, 4, 4)
+		},
+		Fortress: func(x, y, z int) bool {
+			wall := inside(x, y, 0, 0, 12, 8) && !inside(x, y, 2, 2, 8, 4)
+			tower := (x < 2 || x >= 10) && (y < 2 || y >= 6)
+			return wall && (z == 0 || z == 1 || z == 2 && tower)
+		},
+	}
+	positions := make([]map[[3]int]bool, layoutCount)
+	for layout := Classic; layout < layoutCount; layout++ {
+		t.Run(layout.Name(), func(t *testing.T) {
+			g := NewWithLayout(0, layout)
+			positions[layout] = make(map[[3]int]bool)
+			for _, tile := range g.Tiles {
+				p := [3]int{tile.X, tile.Y, tile.Z}
+				if tile.X < 0 || tile.X >= 12 || tile.Y < 0 || tile.Y >= 8 || tile.Z < 0 || tile.Z >= 3 {
+					t.Fatalf("position outside board: %v", p)
+				}
+				if positions[layout][p] {
+					t.Fatalf("duplicate position: %v", p)
+				}
+				positions[layout][p] = true
+			}
+			if len(positions[layout]) != 144 {
+				t.Fatalf("got %d positions, want 144", len(positions[layout]))
+			}
+			for z := 0; z < 3; z++ {
+				for y := 0; y < 8; y++ {
+					for x := 0; x < 12; x++ {
+						p := [3]int{x, y, z}
+						if positions[layout][p] != expected[layout](x, y, z) {
+							t.Errorf("unexpected occupancy at %v", p)
+						}
+						if z > 0 && positions[layout][p] && !positions[layout][[3]int{x, y, z - 1}] {
+							t.Errorf("unsupported tile at %v", p)
+						}
+					}
+				}
+			}
+		})
+	}
+	for a := Classic; a < layoutCount; a++ {
+		for b := a + 1; b < layoutCount; b++ {
+			different := false
+			for p := range positions[a] {
+				if !positions[b][p] {
+					different = true
+					break
+				}
+			}
+			if !different {
+				t.Errorf("%s and %s have identical coordinates", a.Name(), b.Name())
+			}
+		}
+	}
+}
+
+func TestLayoutsHaveCompleteMatchingSolution(t *testing.T) {
+	for layout := Classic; layout < layoutCount; layout++ {
+		for seed := int64(0); seed < 50; seed++ {
+			g := NewWithLayout(seed, layout)
+			pairs := g.shuffle()
+			if len(pairs) != 72 {
+				t.Fatalf("%s seed %d: got %d solution pairs, want 72", layout.Name(), seed, len(pairs))
+			}
+			for move, pair := range pairs {
+				if !g.Match(pair[0], pair[1]) {
+					t.Fatalf("%s seed %d: solution move %d is not a legal matching pair", layout.Name(), seed, move)
+				}
+				// Also verify a shuffle after some tiles have been removed.
+				if move == 9 {
+					partial := *g
+					partial.Tiles = append([]Tile(nil), g.Tiles...)
+					partial.history = nil
+					for _, next := range partial.shuffle() {
+						if !partial.Match(next[0], next[1]) {
+							t.Fatalf("%s seed %d: shuffled partial deal has an illegal solution move", layout.Name(), seed)
+						}
+					}
+					if partial.Remaining() != 0 {
+						t.Fatalf("%s seed %d: shuffled partial deal was not cleared", layout.Name(), seed)
+					}
+				}
+			}
+			if g.Remaining() != 0 {
+				t.Fatalf("%s seed %d: solution did not clear the board", layout.Name(), seed)
+			}
+		}
+	}
+}
+
 func TestLayoutsCreateCompleteValidDeals(t *testing.T) {
 	for layout := Classic; layout < layoutCount; layout++ {
 		for seed := int64(0); seed < 50; seed++ {
