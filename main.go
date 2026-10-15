@@ -3,9 +3,7 @@ package main
 import (
 	"embed"
 	"fmt"
-	"image"
 	"image/color"
-	"image/png"
 	"time"
 
 	"fyne.io/fyne/v2"
@@ -15,7 +13,6 @@ import (
 	"fyne.io/fyne/v2/dialog"
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
-	"mahjong/internal/board"
 	"mahjong/internal/game"
 )
 
@@ -30,44 +27,10 @@ func (boardLayout) MinSize([]fyne.CanvasObject) fyne.Size { return fyne.NewSize(
 func (boardLayout) Layout(objects []fyne.CanvasObject, size fyne.Size) {
 	sx, sy := size.Width/840, size.Height/680
 	for _, o := range objects {
-		if pyramid, ok := o.(*pyramidBoard); ok {
-			scale := min(sx, sy)
-			projected := fyne.NewSize(board.Width*scale, board.Height*scale)
-			pyramid.Move(fyne.NewPos((size.Width-projected.Width)/2, (size.Height-projected.Height)/2))
-			pyramid.Resize(projected)
-			continue
-		}
 		t := o.(*tileButton)
 		t.Move(fyne.NewPos(float32(20+t.tile.X*64+t.tile.Z*10)*sx, float32(20+t.tile.Y*76-t.tile.Z*10)*sy))
 		t.Resize(fyne.NewSize(58*sx, 76*sy))
 	}
-}
-
-// A single hit-tested board avoids rectangular widget bounds intercepting
-// clicks intended for a visible diamond-shaped tile underneath.
-type pyramidBoard struct {
-	widget.BaseWidget
-	g                      *game.Game
-	artwork                []image.Image
-	selected, hintA, hintB int
-	tapped                 func(int)
-}
-
-func (p *pyramidBoard) Tapped(e *fyne.PointEvent) {
-	size := p.Size()
-	if size.Width <= 0 || size.Height <= 0 {
-		return
-	}
-	i := board.Hit(p.g.Tiles, e.Position.X*board.Width/size.Width, e.Position.Y*board.Height/size.Height)
-	if i >= 0 {
-		p.tapped(i)
-	}
-}
-
-func (p *pyramidBoard) CreateRenderer() fyne.WidgetRenderer {
-	view := canvas.NewImageFromImage(board.Render(p.g, p.artwork, p.selected, p.hintA, p.hintB))
-	view.FillMode = canvas.ImageFillStretch
-	return widget.NewSimpleRenderer(view)
 }
 
 type tileButton struct {
@@ -105,18 +68,6 @@ func (t *tileButton) CreateRenderer() fyne.WidgetRenderer {
 }
 
 func main() {
-	artwork := make([]image.Image, 36)
-	for kind := range artwork {
-		file, err := tileArtwork.Open(fmt.Sprintf("assets/tiles/%02d.png", kind))
-		if err != nil {
-			panic(err)
-		}
-		artwork[kind], err = png.Decode(file)
-		file.Close()
-		if err != nil {
-			panic(err)
-		}
-	}
 	a := app.NewWithID("ru.mahjong.solitaire")
 	a.Settings().SetTheme(theme.LightTheme())
 	w := a.NewWindow("Маджонг — пасьянс")
@@ -161,20 +112,14 @@ func main() {
 			}
 			refresh()
 		}
-		if g.Layout == game.Pyramid {
-			pyramid := &pyramidBoard{g: g, artwork: artwork, selected: selected, hintA: hintA, hintB: hintB, tapped: tap}
-			pyramid.ExtendBaseWidget(pyramid)
-			boardView.Add(pyramid)
-		} else {
-			for i, t := range g.Tiles {
-				if t.Removed {
-					continue
-				}
-				i := i
-				button := &tileButton{tile: t, free: g.Free(i), selected: selected == i, hinted: i == hintA || i == hintB, tapped: func() { tap(i) }}
-				button.ExtendBaseWidget(button)
-				boardView.Add(button)
+		for i, t := range g.Tiles {
+			if t.Removed {
+				continue
 			}
+			i := i
+			button := &tileButton{tile: t, free: g.Free(i), selected: selected == i, hinted: i == hintA || i == hintB, tapped: func() { tap(i) }}
+			button.ExtendBaseWidget(button)
+			boardView.Add(button)
 		}
 		status.SetText(fmt.Sprintf("%s · Плиток: %d / 144", g.Layout.Name(), g.Remaining()))
 		if g.Remaining() == 0 {
